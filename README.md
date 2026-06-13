@@ -1,121 +1,142 @@
-# 🚀 Spring PetClinic 3-Tier AWS Deployment
+# 🌿 Spring PetClinic — 3-Tier AWS Deployment
 
-A production-grade deployment of the **Spring PetClinic Application** on AWS using a highly available and scalable **3-Tier Architecture** following AWS best practices.
+> A production-grade deployment of the **Spring PetClinic** application on AWS using a highly available, secure, and scalable **3-Tier Architecture** following AWS Well-Architected Framework best practices.
 
-**Live Application:** https://petclinic.eshwar.site
+🔗 **Live Application:** [https://petclinic.eshwar.site](https://petclinic.eshwar.site)
 
 ---
 
 ## 📋 Table of Contents
 
-- [Project Overview](#project-overview)
-- [Architecture](#architecture)
-- [AWS Services](#aws-services)
-- [Network Design](#network-design)
-- [Security](#security)
-- [Components](#components)
-- [Screenshots](#screenshots)
-- [Deployment](#deployment)
-- [Learning Outcomes](#learning-outcomes)
-- [Future Improvements](#future-improvements)
+- [Project Overview](#-project-overview)
+- [Architecture Diagram](#-architecture-diagram)
+- [AWS Services Used](#️-aws-services-used)
+- [Network Design](#-network-design)
+- [Security Architecture](#-security-architecture)
+- [Load Balancers](#️-load-balancers)
+- [Auto Scaling Groups](#-auto-scaling-groups)
+- [EC2 Instances](#-ec2-instances)
+- [RDS MySQL Database](#️-rds-mysql-database)
+- [SSL Certificate](#-ssl-certificate)
+- [Monitoring & Observability](#-monitoring--observability)
+- [Systems Manager](#-systems-manager)
+- [Screenshots](#-screenshots)
+- [Deployment Guide](#-deployment-guide)
+- [Learning Outcomes](#-learning-outcomes)
+- [Future Improvements](#-future-improvements)
+- [Author](#-author)
 
 ---
 
 ## 🎯 Project Overview
 
-This project demonstrates a production-ready deployment architecture that separates concerns across three distinct layers:
+This project demonstrates how to deploy a **Java Spring Boot application** on AWS using a clean **3-Tier Architecture** that separates concerns across three distinct layers:
 
-- **Presentation Layer (Frontend):** User-facing interface with React + Nginx
-- **Application Layer (Backend):** Spring Boot microservices
-- **Database Layer:** Amazon RDS MySQL
+| Layer | Technology | Subnet |
+|-------|-----------|--------|
+| **Presentation (Frontend)** | React + Nginx | Public Subnets |
+| **Application (Backend)** | Spring Boot + Java 17 | Private App Subnets |
+| **Database** | Amazon RDS MySQL | Private DB Subnets |
 
-The infrastructure incorporates:
-- ✅ **High Availability** - Multi-AZ deployment across us-east-1a and us-east-1b
-- ✅ **Auto Scaling** - Dynamic resource management based on demand
-- ✅ **Security** - Layered security groups, SSL/TLS, private subnets
-- ✅ **Monitoring** - CloudWatch dashboards and metrics
-- ✅ **Load Balancing** - Public and Internal ALBs for traffic distribution
+### Key Features
+
+✅ **High Availability** — Multi-AZ deployment across `us-east-1a` and `us-east-1b`  
+✅ **Auto Scaling** — Dynamic capacity management based on demand  
+✅ **Security** — Layered security groups, SSL/TLS, private subnets  
+✅ **Monitoring** — CloudWatch dashboards and real-time metrics  
+✅ **Load Balancing** — Public and Internal ALBs for traffic distribution  
+✅ **Managed Access** — No SSH keys needed; AWS Systems Manager for instance management  
 
 ---
 
-## 🏗️ Architecture
-
-### Architecture Diagram
+## 🏗️ Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      INTERNET / DNS (GoDaddy)                   │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-                    ┌────────────────┐
-                    │  ACM Certificate│
-                    │  *.eshwar.site  │
-                    └────────┬────────┘
-                             │
-                             ▼
-            ┌────────────────────────────────────┐
-            │     PUBLIC ALB (Internet-facing)    │
-            │         Port: 80, 443              │
-            └─────────┬──────────────┬───────────┘
-                      │              │
-         ┌────────────┘              └────────────┐
-         │                                        │
-         ▼                                        ▼
-    ┌─────────────┐  us-east-1a            ┌─────────────┐  us-east-1b
-    │ Web Subnet A│                        │ Web Subnet B│
-    │ 10.0.1.0/24 │  ┌──────────────┐     │ 10.0.2.0/24 │  ┌──────────────┐
-    ├─────────────┤  │ Frontend ASG  │     ├─────────────┤  │ Frontend ASG  │
-    │ React + Nginx   │ EC2 Instance │     │ React + Nginx   │ EC2 Instance │
-    └─────────────┘  └──────────────┘     └─────────────┘  └──────────────┘
-         │                                        │
-         └────────────────────┬───────────────────┘
-                              │
-                              ▼
-            ┌────────────────────────────────────┐
-            │   INTERNAL ALB (Private)            │
-            │      Port: 8080                    │
-            └─────────┬──────────────┬───────────┘
-                      │              │
-         ┌────────────┘              └────────────┐
-         │                                        │
-         ▼                                        ▼
-    ┌─────────────┐  us-east-1a            ┌─────────────┐  us-east-1b
-    │App Subnet A │                        │App Subnet B │
-    │10.0.3.0/24  │  ┌──────────────┐     │10.0.4.0/24  │  ┌──────────────┐
-    ├─────────────┤  │ Backend ASG   │     ├─────────────┤  │ Backend ASG   │
-    │ Spring Boot     │ EC2 Instance │     │ Spring Boot     │ EC2 Instance │
-    │ Java 17         └──────────────┘     │ Java 17         └──────────────┘
-    └─────────────┘                        └─────────────┘
-         │                                        │
-         └────────────────────┬───────────────────┘
-                              │
-                              ▼
-            ┌────────────────────────────────────┐
-            │    RDS MySQL (Private)              │
-            │      Port: 3306                    │
-            │  Multi-AZ Database Subnet Group    │
-            └────────────────────────────────────┘
-                   us-east-1a  us-east-1b
-              DB Subnet A    DB Subnet B
-             10.0.5.0/24   10.0.6.0/24
+                        ┌─────────────────────────────────┐
+                        │        USER / INTERNET          │
+                        └────────────────┬────────────────┘
+                                         │
+                                         ▼
+                        ┌─────────────────────────────────┐
+                        │     GoDaddy DNS (Custom Domain) │
+                        │       petclinic.eshwar.site     │
+                        └────────────────┬────────────────┘
+                                         │
+                                         ▼
+                        ┌─────────────────────────────────┐
+                        │  ACM SSL Certificate            │
+                        │  *.eshwar.site  (HTTPS 443)     │
+                        └────────────────┬────────────────┘
+                                         │
+                ╔════════════════════════╪════════════════════════╗
+                ║     PUBLIC ALB  (Internet-Facing)              ║
+                ║         Port: 80 → redirect 443                ║
+                ╚═══════════════╤════════════════╤══════════════╝
+                                │                │
+              ┌─────────────────┘                └──────────────────┐
+              │                                                     │
+   ┌──────────▼──────────┐  us-east-1a     ┌──────────▼──────────┐  us-east-1b
+   │   web-sub-a          │                 │   web-sub-b          │
+   │   10.0.1.0/24        │                 │   10.0.2.0/24        │
+   │  ┌───────────────┐   │                 │  ┌───────────────┐   │
+   │  │  Frontend EC2  │   │                 │  │  Frontend EC2  │   │
+   │  │  React + Nginx │   │                 │  │  React + Nginx │   │
+   │  │  (ASG: 1-2)   │   │                 │  │  (ASG: 1-2)   │   │
+   │  └───────────────┘   │                 │  └───────────────┘   │
+   └─────────────────────-┘                 └──────────────────────┘
+              │                                        │
+              └─────────────────┬──────────────────────┘
+                                │
+                ╔════════════════╪════════════════════════╗
+                ║   INTERNAL ALB  (Private)              ║
+                ║         Port: 8080                     ║
+                ╚═══════════════╤════════════════╤══════╝
+                                │                │
+              ┌─────────────────┘                └──────────────────┐
+              │                                                     │
+   ┌──────────▼──────────┐  us-east-1a     ┌──────────▼──────────┐  us-east-1b
+   │  private-app-a       │                 │  private-app-b       │
+   │  10.0.3.0/24         │                 │  10.0.4.0/24         │
+   │  ┌───────────────┐   │                 │  ┌───────────────┐   │
+   │  │  Backend EC2   │   │                 │  │  Backend EC2   │   │
+   │  │  Spring Boot   │   │                 │  │  Spring Boot   │   │
+   │  │  Java 17       │   │                 │  │  Java 17       │   │
+   │  │  (ASG: 1-2)   │   │                 │  │  (ASG: 1-2)   │   │
+   │  └───────────────┘   │                 │  └───────────────┘   │
+   └──────────────────────┘                 └──────────────────────┘
+              │                                        │
+              └─────────────────┬──────────────────────┘
+                                │
+                                ▼
+         ┌──────────────────────────────────────────────────┐
+         │                AMAZON RDS MYSQL                   │
+         │              Port: 3306 (Private)                 │
+         │  ┌───────────────────┐  ┌───────────────────┐    │
+         │  │  private-db-a     │  │  private-db-b     │    │
+         │  │  10.0.5.0/24      │  │  10.0.6.0/24      │    │
+         │  │  us-east-1a       │  │  us-east-1b       │    │
+         │  └───────────────────┘  └───────────────────┘    │
+         └──────────────────────────────────────────────────┘
 ```
 
 ### Request Flow
 
 ```
-User Request
-    ↓
-GoDaddy Domain → ACM SSL Certificate
-    ↓
-Public ALB (Port 443)
-    ↓
-Frontend ASG (React + Nginx on Port 80)
-    ↓
-Internal ALB (Port 8080)
-    ↓
-Backend ASG (Spring Boot on Port 8080)
-    ↓
+User
+  │
+  ▼
+GoDaddy Domain (petclinic.eshwar.site)
+  │
+  ▼
+ACM SSL Certificate (HTTPS Termination)
+  │
+  ▼
+Public ALB → Frontend ASG (React + Nginx)
+  │
+  ▼
+Internal ALB → Backend ASG (Spring Boot / Port 8080)
+  │
+  ▼
 Amazon RDS MySQL (Port 3306)
 ```
 
@@ -126,545 +147,419 @@ Amazon RDS MySQL (Port 3306)
 | Service | Purpose | Configuration |
 |---------|---------|---------------|
 | **Amazon EC2** | Application Hosting | t3.micro instances |
-| **Auto Scaling Groups** | High Availability & Elasticity | Min: 1, Max: 2 instances |
-| **Application Load Balancer** | Traffic Distribution | Public & Internal ALBs |
-| **Amazon RDS MySQL** | Database | db.t3.micro, Multi-AZ |
-| **Amazon VPC** | Network Isolation | Custom VPC with 10.0.0.0/16 CIDR |
+| **Auto Scaling Groups** | High Availability & Elasticity | Min: 1 · Max: 2 per tier |
+| **Application Load Balancer** | Traffic Distribution | Public + Internal ALBs |
+| **Amazon RDS MySQL** | Relational Database | db.t3.micro, Multi-AZ |
+| **Amazon VPC** | Network Isolation | CIDR: 10.0.0.0/16 |
 | **Route Tables** | Network Routing | Public & Private routes |
-| **Security Groups** | Network Security | Layered access control |
-| **Internet Gateway** | Public Internet Access | VPC connectivity |
-| **NAT Gateway** | Private Subnet Internet Access | Outbound only |
-| **ACM** | SSL/TLS Certificate | *.eshwar.site |
-| **Systems Manager** | Instance Management | Fleet Manager, Session Manager |
-| **CloudWatch** | Monitoring & Logging | Dashboards, metrics, alarms |
-| **Route 53** (Future) | DNS Management | Custom domain routing |
+| **Security Groups** | Layered Network Security | Per-tier access control |
+| **Internet Gateway** | Public Internet Access | Attached to VPC |
+| **NAT Gateway** | Private Subnet Outbound Access | In public subnet |
+| **ACM** | SSL/TLS Certificate | *.eshwar.site (wildcard) |
+| **Systems Manager (SSM)** | Instance Management | Fleet Manager, Session Manager |
+| **CloudWatch** | Monitoring & Alerting | Dashboards, metrics, alarms |
+| **GoDaddy DNS** | Custom Domain Resolution | CNAME → ALB DNS |
 
 ---
 
 ## 🌐 Network Design
 
-### VPC Architecture
+### VPC & Subnet Configuration
 
-```
-┌──────────────────────────────────────────────────┐
-│           VPC: 10.0.0.0/16                       │
-│                                                  │
-│  ┌────────────────────────────────────────────┐ │
-│  │ Internet Gateway                            │ │
-│  └────────────────────────────────────────────┘ │
-│                                                  │
-│  ┌──────────────────┐  ┌──────────────────────┐│
-│  │  PUBLIC SUBNETS  │  │  PRIVATE SUBNETS     ││
-│  │   (Tier 1)       │  │   (Tier 2 & 3)       ││
-│  ├──────────────────┤  ├──────────────────────┤│
-│  │ web-sub-a        │  │ app-sub-a (10.0.3/24)││
-│  │ 10.0.1.0/24      │  │ app-sub-b (10.0.4/24)││
-│  │                  │  │ db-sub-a  (10.0.5/24)││
-│  │ web-sub-b        │  │ db-sub-b  (10.0.6/24)││
-│  │ 10.0.2.0/24      │  │                      ││
-│  └──────────────────┘  └──────────────────────┘│
-│                                                  │
-└──────────────────────────────────────────────────┘
-```
+| Subnet Name | CIDR | Type | Purpose | AZ |
+|-------------|------|------|---------|-----|
+| `web-sub-a` | 10.0.1.0/24 | Public | Frontend instances | us-east-1a |
+| `web-sub-b` | 10.0.2.0/24 | Public | Frontend instances | us-east-1b |
+| `private-app-a` | 10.0.3.0/24 | Private | Backend instances | us-east-1a |
+| `private-app-b` | 10.0.4.0/24 | Private | Backend instances | us-east-1b |
+| `private-db-a` | 10.0.5.0/24 | Private | RDS MySQL | us-east-1a |
+| `private-db-b` | 10.0.6.0/24 | Private | RDS MySQL | us-east-1b |
 
-### Subnets Configuration
+### VPC Subnets
 
-| Name | CIDR | Type | Purpose | AZ |
-|------|------|------|---------|-----|
-| web-sub-a | 10.0.1.0/24 | Public | Frontend instances | us-east-1a |
-| web-sub-b | 10.0.2.0/24 | Public | Frontend instances | us-east-1b |
-| private-app-a | 10.0.3.0/24 | Private | Backend instances | us-east-1a |
-| private-app-b | 10.0.4.0/24 | Private | Backend instances | us-east-1b |
-| private-db-a | 10.0.5.0/24 | Private | Database | us-east-1a |
-| private-db-b | 10.0.6.0/24 | Private | Database | us-east-1b |
+![VPC Subnets](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/subnets.png)
+*Public and private subnets across two availability zones*
+
+### VPC Resource Map
+
+![VPC Resource Map](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/vpc-resource-map.png)
+*Complete VPC topology showing all resources and connectivity*
 
 ---
 
 ## 🔒 Security Architecture
 
-### Security Groups Configuration
+Security is implemented in layers — each tier only accepts traffic from the tier directly above it.
 
-#### Web Security Group (Frontend)
 ```
-Ingress Rules:
-  ├─ HTTP (Port 80) from Internet (0.0.0.0/0)
-  └─ HTTPS (Port 443) from Internet (0.0.0.0/0)
-
-Egress Rules:
-  └─ All traffic allowed
-```
-
-#### Application Security Group (Backend)
-```
-Ingress Rules:
-  ├─ SSH (Port 22) from Bastion/SSM (for management)
-  ├─ HTTP (Port 8080) from Web SG
-  └─ All traffic from App SG (for inter-service communication)
-
-Egress Rules:
-  └─ All traffic allowed
+Internet (0.0.0.0/0)
+  │  Port 80, 443
+  ▼
+Web Security Group  (Public ALB + Frontend)
+  │  Port 8080
+  ▼
+Application Security Group  (Backend EC2)
+  │  Port 3306
+  ▼
+Database Security Group  (RDS MySQL)
 ```
 
-#### Database Security Group
-```
-Ingress Rules:
-  └─ MySQL (Port 3306) from Application SG
-
-Egress Rules:
-  └─ All traffic allowed
-```
+| Security Group | Allowed Inbound | Source |
+|----------------|----------------|--------|
+| **Web SG** | HTTP (80), HTTPS (443) | Internet (0.0.0.0/0) |
+| **Application SG** | HTTP (8080), SSH (22) | Web Security Group |
+| **Database SG** | MySQL (3306) | Application Security Group |
 
 ### Security Highlights
 
-✅ **No Direct Internet Access to Backend** - Backend servers in private subnets  
-✅ **No Database Internet Exposure** - RDS in private subnets  
-✅ **SSL/TLS Encryption** - ACM certificates for all traffic  
-✅ **Network Segmentation** - Three-tier security group architecture  
-✅ **Session Manager Access** - No SSH keys needed, managed via SSM  
-✅ **Database Subnet Group** - Private RDS deployment across AZs  
+✅ No direct internet access to backend or database  
+✅ Backend EC2 instances deployed in **private subnets**  
+✅ RDS deployed in **private DB subnets** with no public endpoint  
+✅ SSL/TLS enabled via **ACM wildcard certificate**  
+✅ **No SSH keys required** — access via AWS SSM Session Manager  
+✅ Three-tier security group chain enforces least-privilege  
 
 ---
 
-## 📦 Components
+## ⚖️ Load Balancers
 
-### Frontend Layer (Presentation)
+### Public ALB (Internet-Facing)
 
-- **Technology:** React + Nginx
-- **Deployment:** EC2 instances in Public Subnets
-- **Load Balancer:** Public Application Load Balancer
-- **Auto Scaling:** 1-2 instances based on demand
-- **SSL/TLS:** ACM certificate with ACM
+Receives all inbound traffic from the internet, terminates SSL, and routes to the Frontend Auto Scaling Group.
 
-### Backend Layer (Application)
+- **Scheme:** Internet-facing
+- **Listeners:** HTTP (80) → redirect to HTTPS; HTTPS (443) → forward to frontend target group
+- **Multi-AZ:** Yes (us-east-1a, us-east-1b)
+- **SSL Certificate:** ACM `*.eshwar.site`
 
-- **Technology:** Spring Boot + Java 17
-- **Deployment:** EC2 instances in Private App Subnets
-- **Load Balancer:** Internal Application Load Balancer
-- **Database:** Spring Data JPA with Hibernate
-- **Auto Scaling:** 1-2 instances based on demand
+![Public ALB](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/public-alb.png)
+*Internet-facing load balancer distributing traffic across frontend instances*
 
-### Database Layer (Data)
+---
 
-- **Engine:** MySQL Community Edition
-- **Instance Type:** db.t3.micro
-- **Storage:** 20GB gp2
-- **Deployment:** Multi-AZ RDS in Private DB Subnets
-- **Backup:** Automated backups enabled
-- **Security:** Encrypted at rest and in transit
+### Internal ALB (Private)
+
+Routes traffic from frontend Nginx instances to backend Spring Boot services. Never exposed to the internet.
+
+- **Scheme:** Internal (private subnets only)
+- **Listeners:** HTTP (8080) → forward to backend target group
+- **Multi-AZ:** Yes (us-east-1a, us-east-1b)
+
+![Internal ALB](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/internal-alb.png)
+*Private internal load balancer routing traffic from frontend to backend services*
+
+---
+
+### Target Groups
+
+**Frontend Target Group** — Health check on port 80
+
+![Frontend Target Group](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/frontend-target-group.png)
+*Frontend target group with health checks for Nginx instances*
+
+**Backend Target Group** — Health check on port 8080
+
+![Backend Target Group](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/backend-target-group.png)
+*Backend target group with health checks for Spring Boot instances*
+
+---
+
+## 📈 Auto Scaling Groups
+
+Both tiers use Auto Scaling Groups with Launch Templates for dynamic capacity management.
+
+| ASG | Min | Desired | Max | Technology |
+|-----|-----|---------|-----|-----------|
+| **Frontend ASG** | 1 | 1 | 2 | React + Nginx |
+| **Backend ASG** | 1 | 1 | 2 | Spring Boot + Java 17 |
+
+### Frontend ASG
+
+![Frontend ASG](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/frontend-asg.png)
+*Auto Scaling Group managing frontend (React + Nginx) instances across AZs*
+
+### Backend ASG
+
+![Backend ASG](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/backend-asg.png)
+*Auto Scaling Group managing backend (Spring Boot) instances across AZs*
+
+---
+
+## 🖥️ EC2 Instances
+
+### Running Instances
+
+![EC2 Instances](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/ec2.png)
+*EC2 instances for frontend and backend tiers running across availability zones*
+
+| Role | Technology | Subnet | Instance Type |
+|------|-----------|--------|--------------|
+| Frontend | React + Nginx | Public (web-sub-a/b) | t3.micro |
+| Backend | Spring Boot + Java 17 | Private (private-app-a/b) | t3.micro |
+
+### Systemd Service (Auto-start on boot)
+
+![Systemd Service File](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/systemd_file.png)
+*Systemd service configuration for Spring Boot application auto-startup on boot*
+
+---
+
+## 🗄️ RDS MySQL Database
+
+Amazon RDS MySQL runs in private DB subnets with no public accessibility.
+
+| Setting | Value |
+|---------|-------|
+| **Engine** | MySQL Community |
+| **Instance Type** | db.t3.micro |
+| **Storage** | 20 GB gp2 |
+| **Subnets** | private-db-a, private-db-b |
+| **Public Access** | Disabled |
+| **Backup Retention** | 7 days |
+
+![RDS MySQL](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/rds-mysql.png)
+*Amazon RDS MySQL instance deployed in private subnets with automated backups*
+
+---
+
+## 🔐 SSL Certificate
+
+A wildcard ACM certificate covers all subdomains of `eshwar.site`, providing HTTPS for the live application.
+
+| Field | Value |
+|-------|-------|
+| **Certificate** | `*.eshwar.site` |
+| **Status** | Issued ✅ |
+| **Validation** | DNS |
+| **Attached To** | Public ALB — HTTPS Listener |
+
+![ACM Certificate](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/acm-certificate.png)
+*AWS Certificate Manager wildcard certificate for *.eshwar.site — status: Issued*
+
+### Domain Routing (GoDaddy)
+
+![Domain Routing](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/domain-routing.png)
+*GoDaddy DNS CNAME record pointing petclinic.eshwar.site to the Public ALB DNS name*
+
+---
+
+## 📊 Monitoring & Observability
+
+Amazon CloudWatch provides centralized monitoring across all layers.
+
+**Metrics Tracked:**
+- EC2: CPU Utilization, Network In/Out, Status Checks
+- ALB: Request Count, Target Response Time, HTTP 4xx/5xx error rates
+- RDS: CPU, DB Connections, Freeable Memory, Read/Write IOPS
+- ASG: Desired/In-Service capacity, Scaling Activity
+
+![CloudWatch Dashboard](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/cloudwatch-dashboard.png)
+*CloudWatch dashboard monitoring EC2, ALB, RDS, and Auto Scaling metrics in real time*
+
+---
+
+## 🛠️ Systems Manager
+
+AWS Systems Manager Fleet Manager provides secure, keyless access to all EC2 instances — no bastion host or SSH keys required.
+
+**Features used:**
+- **Fleet Manager** — Inventory and status of all instances
+- **Session Manager** — Secure shell-like access without opening port 22
+- **Run Command** — Remote command execution at scale
+
+![SSM Fleet Manager](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/ssm-fleet-manager.png)
+*AWS Systems Manager Fleet Manager showing all managed EC2 instances*
 
 ---
 
 ## 📸 Screenshots
 
-### Architecture & Infrastructure
+### Application Running Live
 
-#### Public Application Load Balancer
-![Public ALB](./screenshots/public-alb.png)
-*Internet-facing load balancer distributing traffic to frontend instances*
+![Application Running](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/application-working.png)
+*Spring PetClinic application successfully deployed and accessible at petclinic.eshwar.site*
 
-#### Internal Application Load Balancer
-![Internal ALB](./screenshots/internal-alb.png)
-*Private load balancer routing traffic from frontend to backend services*
+### Summary Gallery
 
-#### Frontend Auto Scaling Group
-![Frontend ASG](./screenshots/frontend-asg.png)
-*Auto Scaling Group managing frontend (React + Nginx) instances*
-
-#### Backend Auto Scaling Group
-![Backend ASG](./screenshots/backend-asg.png)
-*Auto Scaling Group managing backend (Spring Boot) instances*
-
-### Target Groups & Health Checks
-
-#### Frontend Target Group
-![Frontend Target Group](./screenshots/frontend-target-group.png)
-*Health checks and target registration for frontend instances*
-
-#### Backend Target Group
-![Backend Target Group](./screenshots/backend-target-group.png)
-*Health checks and target registration for backend instances*
-
-### EC2 & Networking
-
-#### EC2 Instances
-![EC2 Instances](./screenshots/ec2.png)
-*Running EC2 instances across availability zones*
-
-#### VPC Resource Map
-![VPC Resource Map](./screenshots/vpc-resource-map.png)
-*Complete VPC topology with all resources*
-
-#### VPC Subnets
-![VPC Subnets](./screenshots/subnets.png)
-*Public and private subnets across multiple availability zones*
-
-### Database & Storage
-
-#### Amazon RDS MySQL
-![RDS MySQL](./screenshots/rds-mysql.png)
-*Multi-AZ RDS MySQL database instance with automated backups*
-
-### Certificate & SSL/TLS
-
-#### ACM Certificate
-![ACM Certificate](./screenshots/acm-certificate.png)
-*AWS Certificate Manager certificate for *.eshwar.site*
-
-#### Domain Routing
-![Domain Routing](./screenshots/domain-routing.png)
-*GoDaddy domain configured to route to CloudFront/ALB*
-
-### Monitoring & Management
-
-#### CloudWatch Dashboard
-![CloudWatch Dashboard](./screenshots/cloudwatch-dashboard.png)
-*CloudWatch dashboard monitoring EC2, ALB, RDS, and Auto Scaling metrics*
-
-#### Systems Manager Fleet Manager
-![SSM Fleet Manager](./screenshots/ssm-fleet-manager.png)
-*AWS Systems Manager for centralized instance management*
-
-#### Systemd Service Configuration
-![Systemd File](./screenshots/systemd_file.png)
-*Systemd service file for Spring Boot application auto-startup*
-
-### Application Status
-
-#### Application Working
-![Application Running](./screenshots/application-working.png)
-*Spring PetClinic application successfully deployed and running*
+| Component | Screenshot |
+|-----------|-----------|
+| Public ALB | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/public-alb.png) |
+| Internal ALB | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/internal-alb.png) |
+| Frontend ASG | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/frontend-asg.png) |
+| Backend ASG | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/backend-asg.png) |
+| Frontend Target Group | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/frontend-target-group.png) |
+| Backend Target Group | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/backend-target-group.png) |
+| EC2 Instances | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/ec2.png) |
+| VPC Subnets | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/subnets.png) |
+| VPC Resource Map | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/vpc-resource-map.png) |
+| RDS MySQL | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/rds-mysql.png) |
+| ACM Certificate | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/acm-certificate.png) |
+| Domain Routing | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/domain-routing.png) |
+| CloudWatch Dashboard | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/cloudwatch-dashboard.png) |
+| SSM Fleet Manager | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/ssm-fleet-manager.png) |
+| Systemd Service | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/systemd_file.png) |
+| Application Live | ![](https://raw.githubusercontent.com/eeshwardevops/spring-petclinic-3tier-aws-deployment/main/screenshots/application-working.png) |
 
 ---
 
-## 🚀 Deployment Steps
+## 🚀 Deployment Guide
 
 ### Prerequisites
 
-```bash
-# Install AWS CLI
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
+- AWS CLI configured (`aws configure`)
+- Java 17 and Maven installed
+- An AWS account with appropriate permissions
 
-# Install Maven
-sudo apt-get update
-sudo apt-get install maven -y
-
-# Install Java 17
-sudo apt-get install openjdk-17-jdk -y
-```
-
-### Clone Repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/eeshwardevops/spring-petclinic-3tier-aws-deployment.git
 cd spring-petclinic-3tier-aws-deployment
 ```
 
-### Build Application
+### 2. Build Application
 
 ```bash
-# Build JAR with Maven
 mvn clean package -DskipTests
-
-# JAR location
-ls -lh target/spring-petclinic-*.jar
+# JAR output: target/spring-petclinic-*.jar
 ```
 
-### Configure VPC & Network
+### 3. Configure Database Connection
 
-```bash
-# Create VPC
-aws ec2 create-vpc --cidr-block 10.0.0.0/16
+Update `src/main/resources/application.properties`:
 
-# Create Subnets (6 total - 2 public, 2 app, 2 db)
-aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.1.0/24 --availability-zone us-east-1a
-aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.2.0/24 --availability-zone us-east-1b
-# ... repeat for app and db subnets
-
-# Create Internet Gateway
-aws ec2 create-internet-gateway
-aws ec2 attach-internet-gateway --vpc-id vpc-xxx --internet-gateway-id igw-xxx
-
-# Create NAT Gateway for private subnets
-aws ec2 allocate-address --domain vpc
-aws ec2 create-nat-gateway --subnet-id subnet-xxx --allocation-id eipalloc-xxx
+```properties
+spring.datasource.url=jdbc:mysql://<RDS-ENDPOINT>:3306/petclinic
+spring.datasource.username=<DB_USERNAME>
+spring.datasource.password=<DB_PASSWORD>
 ```
 
-### Create Security Groups
+### 4. Deploy Backend
 
 ```bash
-# Web Security Group
-aws ec2 create-security-group --group-name web-sg \
-  --description "Web tier security group" \
-  --vpc-id vpc-xxx
-
-# Application Security Group
-aws ec2 create-security-group --group-name app-sg \
-  --description "App tier security group" \
-  --vpc-id vpc-xxx
-
-# Database Security Group
-aws ec2 create-security-group --group-name db-sg \
-  --description "Database tier security group" \
-  --vpc-id vpc-xxx
-
-# Configure Security Group Rules
-aws ec2 authorize-security-group-ingress --group-id sg-web \
-  --protocol tcp --port 80 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id sg-web \
-  --protocol tcp --port 443 --cidr 0.0.0.0/0
+java -jar target/spring-petclinic-*.jar
 ```
 
-### Create RDS MySQL Database
+Or using the systemd service for persistent background execution:
 
 ```bash
-# Create DB Subnet Group
-aws rds create-db-subnet-group \
-  --db-subnet-group-name petclinic-db-subnet-group \
-  --db-subnet-group-description "Private subnets for RDS" \
-  --subnet-ids subnet-app-a subnet-app-b
-
-# Create RDS Instance
-aws rds create-db-instance \
-  --db-instance-identifier petclinic-mysql \
-  --db-instance-class db.t3.micro \
-  --engine mysql \
-  --master-username admin \
-  --master-user-password 'YourSecurePassword!' \
-  --allocated-storage 20 \
-  --vpc-security-group-ids sg-database \
-  --db-subnet-group-name petclinic-db-subnet-group \
-  --multi-az \
-  --backup-retention-period 7
+sudo systemctl enable petclinic
+sudo systemctl start petclinic
+sudo systemctl status petclinic
 ```
 
-### Create Load Balancers
+### 5. Configure Load Balancers
 
 ```bash
-# Create Public ALB for Frontend
-aws elbv2 create-load-balancer \
-  --name public-alb \
-  --subnets subnet-web-a subnet-web-b \
-  --security-groups sg-web \
-  --scheme internet-facing
-
-# Create Internal ALB for Backend
-aws elbv2 create-load-balancer \
-  --name internal-alb \
-  --subnets subnet-app-a subnet-app-b \
-  --security-groups sg-app \
-  --scheme internal
-
 # Create Target Groups
 aws elbv2 create-target-group \
-  --name frontend-targets \
-  --protocol HTTP \
-  --port 80 \
-  --vpc-id vpc-xxx
+  --name frontend-targets --protocol HTTP --port 80 --vpc-id <VPC_ID>
 
 aws elbv2 create-target-group \
-  --name backend-targets \
-  --protocol HTTP \
-  --port 8080 \
-  --vpc-id vpc-xxx
+  --name backend-targets --protocol HTTP --port 8080 --vpc-id <VPC_ID>
+
+# Create Public ALB
+aws elbv2 create-load-balancer \
+  --name public-alb \
+  --subnets <web-sub-a> <web-sub-b> \
+  --security-groups <web-sg-id> \
+  --scheme internet-facing
+
+# Create Internal ALB
+aws elbv2 create-load-balancer \
+  --name internal-alb \
+  --subnets <private-app-a> <private-app-b> \
+  --security-groups <app-sg-id> \
+  --scheme internal
 ```
 
-### Create Auto Scaling Groups
+### 6. Configure Auto Scaling
 
 ```bash
-# Create Launch Template for Frontend
-aws ec2 create-launch-template \
-  --launch-template-name frontend-launch-template \
-  --version-description "Frontend with React and Nginx" \
-  --launch-template-data '{...}'
-
-# Create ASG for Frontend
+# Create Launch Templates, then ASGs
 aws autoscaling create-auto-scaling-group \
   --auto-scaling-group-name frontend-asg \
-  --launch-template LaunchTemplateName=frontend-launch-template \
-  --min-size 1 \
-  --max-size 2 \
-  --desired-capacity 1 \
-  --vpc-zone-identifier "subnet-web-a,subnet-web-b"
+  --launch-template LaunchTemplateName=frontend-lt \
+  --min-size 1 --max-size 2 --desired-capacity 1 \
+  --vpc-zone-identifier "<web-sub-a>,<web-sub-b>" \
+  --target-group-arns <frontend-tg-arn>
 
-# Repeat for Backend
 aws autoscaling create-auto-scaling-group \
   --auto-scaling-group-name backend-asg \
-  --launch-template LaunchTemplateName=backend-launch-template \
-  --min-size 1 \
-  --max-size 2 \
-  --desired-capacity 1 \
-  --vpc-zone-identifier "subnet-app-a,subnet-app-b"
-```
-
-### Configure ACM Certificate & DNS
-
-```bash
-# Request ACM Certificate
-aws acm request-certificate \
-  --domain-name petclinic.eshwar.site \
-  --domain-name "*.eshwar.site" \
-  --validation-method DNS
-
-# Update GoDaddy DNS to point to ALB
-# ALB DNS Name: public-alb-xxx.us-east-1.elb.amazonaws.com
-```
-
-### Enable Monitoring
-
-```bash
-# Create CloudWatch Dashboard
-aws cloudwatch put-dashboard \
-  --dashboard-name PetClinic-Dashboard \
-  --dashboard-body file://dashboard-config.json
-```
-
----
-
-## 📊 Monitoring & Observability
-
-### CloudWatch Metrics Tracked
-
-- **EC2 Metrics:** CPU Utilization, Network In/Out, Disk I/O
-- **ALB Metrics:** Request Count, Target Response Time, HTTP Status Codes
-- **RDS Metrics:** CPU Utilization, Database Connections, Query Performance
-- **ASG Metrics:** Desired/Current Capacity, Scaling Activities
-- **Application Metrics:** Custom metrics from Spring Boot
-
-### Alarms & Notifications
-
-```
-High CPU Usage on EC2 → CloudWatch Alarm → SNS → Email Notification
-High Response Time on ALB → CloudWatch Alarm → SNS → Escalation
-RDS Storage Usage > 80% → CloudWatch Alarm → SNS → Alert
-ASG Scaling Activity → CloudWatch Logs → Monitoring
+  --launch-template LaunchTemplateName=backend-lt \
+  --min-size 1 --max-size 2 --desired-capacity 1 \
+  --vpc-zone-identifier "<private-app-a>,<private-app-b>" \
+  --target-group-arns <backend-tg-arn>
 ```
 
 ---
 
 ## 🎯 Learning Outcomes
 
-Through this project, I gained hands-on experience with:
+Through this project I gained hands-on experience with:
 
-- ✅ **AWS Networking** - VPC, subnets, route tables, IGW, NAT Gateway
-- ✅ **EC2 Administration** - Instance types, AMI, security groups, key pairs
-- ✅ **Load Balancing** - Public & Internal ALBs, target groups, health checks
-- ✅ **Auto Scaling** - Launch templates, ASG policies, scaling activities
-- ✅ **Database Management** - RDS MySQL, multi-AZ setup, backup strategies
-- ✅ **Security** - Security groups, ACM certificates, SSL/TLS, encryption
-- ✅ **Monitoring** - CloudWatch dashboards, metrics, alarms, logs
-- ✅ **Systems Manager** - Fleet Manager, Session Manager, instance management
-- ✅ **High Availability** - Multi-AZ deployment, failover, redundancy
-- ✅ **Production Deployments** - Best practices, scalability, reliability
+| Domain | Skills |
+|--------|--------|
+| **AWS Networking** | VPC design, subnets, route tables, IGW, NAT Gateway |
+| **Compute** | EC2 administration, AMIs, instance profiles |
+| **Load Balancing** | Public & Internal ALBs, target groups, health checks |
+| **Auto Scaling** | Launch templates, ASG policies, scaling activities |
+| **Database** | RDS MySQL, subnet groups, backup strategies |
+| **Security** | Security groups, ACM, SSL/TLS, least-privilege |
+| **Monitoring** | CloudWatch dashboards, metrics, alarms, logs |
+| **Instance Management** | SSM Fleet Manager, Session Manager, Run Command |
+| **Architecture** | High availability, multi-AZ, 3-tier patterns |
+| **Production Ops** | Systemd services, zero-downtime considerations |
 
 ---
 
 ## 🔮 Future Improvements
 
-### Infrastructure & Architecture
-
-- 🚀 **Terraform IaC** - Replace manual AWS CLI with Infrastructure as Code
-- 🚀 **Containerization** - Docker containers for frontend and backend
-- 🚀 **Amazon ECS/Fargate** - Container orchestration on AWS
-- 🚀 **AWS CodePipeline** - CI/CD pipeline for automated deployments
-- 🚀 **GitHub Actions** - Automated testing and deployment workflows
-- 🚀 **Blue/Green Deployments** - Zero-downtime deployments
-- 🚀 **Canary Deployments** - Gradual rollout with traffic shifting
+### Infrastructure & CI/CD
+- 🚀 **Terraform IaC** — Replace manual provisioning with code
+- 🚀 **GitHub Actions CI/CD** — Automated test → build → deploy pipeline
+- 🚀 **Docker + Amazon ECS/Fargate** — Containerized workloads
+- 🚀 **Blue/Green Deployments** — Zero-downtime release strategy
 
 ### Security & Compliance
-
-- 🔐 **AWS WAF** - Web Application Firewall protection
-- 🔐 **AWS Shield** - DDoS protection
-- 🔐 **Secrets Manager** - Centralized secret management
-- 🔐 **VPC Flow Logs** - Network traffic analysis
-- 🔐 **CloudTrail** - API audit logging
+- 🔐 **AWS WAF** — Web Application Firewall
+- 🔐 **AWS Secrets Manager** — Secure credential storage
+- 🔐 **VPC Flow Logs + CloudTrail** — Full audit trail
+- 🔐 **AWS Shield** — DDoS protection
 
 ### Networking & Performance
+- 🌍 **Amazon Route 53** — DNS failover and health-based routing
+- 🌍 **Amazon CloudFront** — CDN for static assets
+- 🌍 **VPC Endpoints** — Private access to AWS services, reduce NAT costs
 
-- 🌍 **Route 53** - DNS failover and traffic management
-- 🌍 **CloudFront** - Content delivery network for static assets
-- 🌍 **Global Accelerator** - Improved application performance
-- 🌍 **VPC Endpoints** - Reduced NAT Gateway costs
-
-### Monitoring & Logging
-
-- 📊 **X-Ray** - Distributed tracing for microservices
-- 📊 **CloudWatch Logs Insights** - Advanced log analysis
-- 📊 **Prometheus + Grafana** - Custom metrics and dashboards
-- 📊 **AWS Security Hub** - Centralized security findings
-
-### Cost Optimization
-
-- 💰 **Reserved Instances** - Reduce EC2 costs
-- 💰 **Savings Plans** - Flexible pricing commitments
-- 💰 **RDS Auto-pause** - Pause database during low traffic
-- 💰 **Spot Instances** - Cost-effective compute for non-critical workloads
-
----
-
-## 📚 Resources & Documentation
-
-- [AWS VPC Documentation](https://docs.aws.amazon.com/vpc/)
-- [AWS EC2 Documentation](https://docs.aws.amazon.com/ec2/)
-- [AWS RDS Documentation](https://docs.aws.amazon.com/rds/)
-- [AWS ALB Documentation](https://docs.aws.amazon.com/elasticloadbalancing/)
-- [AWS Auto Scaling Documentation](https://docs.aws.amazon.com/autoscaling/)
-- [Spring PetClinic GitHub](https://github.com/spring-projects/spring-petclinic)
-- [AWS Architecture Best Practices](https://aws.amazon.com/architecture/best-practices/)
+### Observability
+- 📊 **AWS X-Ray** — Distributed tracing across tiers
+- 📊 **Prometheus + Grafana** — Custom application metrics
 
 ---
 
 ## 👨‍💻 Author
 
-**Eshwar Patel**
+**Eshwar Gajula**
 
-- **GitHub:** [@eeshwardevops](https://github.com/eeshwardevops)
-- **LinkedIn:** [Connect with me](https://linkedin.com)
-- **Website:** [petclinic.eshwar.site](https://petclinic.eshwar.site)
+- 🐙 **GitHub:** [@eeshwardevops](https://github.com/eeshwardevops)
+- 💼 **LinkedIn:** [Connect on LinkedIn](https://linkedin.com)
+- 🌐 **Live Project:** [petclinic.eshwar.site](https://petclinic.eshwar.site)
 
 ---
 
 ## ⭐ Support
 
-If you found this project helpful, please consider giving it a ⭐ on GitHub!
+If you found this project helpful, please consider giving it a ⭐ on GitHub — it helps others discover the project!
 
-Your support motivates me to create more valuable projects and tutorials.
-
-### Repository Links
-
-- **GitHub Repository:** [spring-petclinic-3tier-aws-deployment](https://github.com/eeshwardevops/spring-petclinic-3tier-aws-deployment)
-- **Live Application:** [petclinic.eshwar.site](https://petclinic.eshwar.site)
+**Repository:** [spring-petclinic-3tier-aws-deployment](https://github.com/eeshwardevops/spring-petclinic-3tier-aws-deployment)
 
 ---
 
 ## 📜 License
 
-This project is open-source and available under the MIT License.
+This project is open-source and available under the [MIT License](LICENSE).
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to:
-
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📝 Notes
-
-- All AWS resources are deployed in the `us-east-1` region
-- The application is configured with a custom domain `petclinic.eshwar.site`
-- Database credentials should be stored in AWS Secrets Manager for production
-- All backend services run in private subnets for enhanced security
-- SSL/TLS encryption is enabled for all external traffic
-
----
-
-**Last Updated:** June 13, 2026  
-**Project Status:** ✅ Production Ready
+> **Last Updated:** June 2026 · **Status:** ✅ Production Ready · **Region:** us-east-1
