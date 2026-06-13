@@ -6,6 +6,7 @@
 ![React](https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![Nginx](https://img.shields.io/badge/Nginx-Reverse_Proxy-009639?style=for-the-badge&logo=nginx)
 ![MySQL](https://img.shields.io/badge/MySQL-RDS-4479A1?style=for-the-badge&logo=mysql)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04_LTS-E95420?style=for-the-badge&logo=ubuntu)
 ![CloudWatch](https://img.shields.io/badge/Monitoring-CloudWatch-912121?style=for-the-badge&logo=amazon-cloudwatch)
 ![Status](https://img.shields.io/badge/Status-Production_Ready-success?style=for-the-badge)
 
@@ -30,6 +31,7 @@
 - [Application Build & Integration](#application-build--integration)
 - [Infrastructure Components](#infrastructure-components)
 - [Deployment Steps](#deployment-steps)
+- [Ubuntu Setup & Installation](#ubuntu-setup--installation)
 - [Screenshots](#screenshots)
 - [Monitoring & Observability](#monitoring--observability)
 - [Key Features](#key-features)
@@ -82,7 +84,7 @@ This repository demonstrates a **production-grade, highly available 3-tier AWS a
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  4. Frontend Auto Scaling Group (ASG)                        │
-│     EC2 Instances in Public Subnets:                        │
+│     EC2 Instances in Public Subnets (Ubuntu 22.04):         │
 │     ✓ React (UI Layer)                                      │
 │     ✓ Nginx (Reverse Proxy & Static Server)                │
 │     ✓ Capacity: Min=1, Desired=1, Max=2                    │
@@ -97,7 +99,7 @@ This repository demonstrates a **production-grade, highly available 3-tier AWS a
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  6. Backend Auto Scaling Group (ASG)                         │
-│     EC2 Instances in Private App Subnets:                   │
+│     EC2 Instances in Private App Subnets (Ubuntu 22.04):    │
 │     ✓ Spring Boot (Business Logic)                          │
 │     ✓ Java 17                                               │
 │     ✓ Capacity: Min=1, Desired=1, Max=2                    │
@@ -123,16 +125,16 @@ This repository demonstrates a **production-grade, highly available 3-tier AWS a
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend** | React 18 | User Interface |
-| **Frontend Server** | Nginx 1.24 | Reverse Proxy & Static Files |
-| **Backend** | Spring Boot 3 | REST API & Business Logic |
-| **Language** | Java 17 | Application Runtime |
-| **Database** | MySQL 8.0 | Data Persistence |
-| **IaC** | AWS Services | Infrastructure Management |
-| **Monitoring** | CloudWatch | Metrics & Logs |
-| **Management** | Systems Manager | Fleet Management |
+| Layer | Technology | Purpose | OS |
+|-------|-----------|---------|-----|
+| **Frontend** | React 18 | User Interface | Ubuntu 22.04 |
+| **Frontend Server** | Nginx 1.24 | Reverse Proxy & Static Files | Ubuntu 22.04 |
+| **Backend** | Spring Boot 3 | REST API & Business Logic | Ubuntu 22.04 |
+| **Language** | Java 17 | Application Runtime | Ubuntu 22.04 |
+| **Database** | MySQL 8.0 | Data Persistence | RDS |
+| **IaC** | AWS Services | Infrastructure Management | - |
+| **Monitoring** | CloudWatch | Metrics & Logs | - |
+| **Management** | Systems Manager | Fleet Management | - |
 
 ---
 
@@ -148,7 +150,7 @@ This repository demonstrates a **production-grade, highly available 3-tier AWS a
 - **Route Tables** - Network routing
 
 ### Compute & Scaling
-- **Amazon EC2** - Virtual servers
+- **Amazon EC2** - Virtual servers (Ubuntu 22.04 LTS)
 - **EC2 Launch Templates** - AMI blueprints
 - **Auto Scaling Groups** - Elastic capacity
 - **EC2 Images (AMIs)** - Custom application images
@@ -702,94 +704,343 @@ Renewal: ✓ Automatic (AWS managed)
 
 ---
 
-## 📜 Deployment Scripts
+## 📜 Ubuntu Setup & Installation
 
-### Backend User Data Script
+This section details all commands for Ubuntu 22.04 LTS instances using `apt` package manager.
+
+### Frontend Instance Setup (Ubuntu 22.04)
+
+#### Update System
 ```bash
-#!/bin/bash
-set -e
-
-# Update system
-sudo yum update -y
-sudo yum install -y java-17-amazon-corretto git maven
-
-# Clone repository
-cd /home/ec2-user
-git clone https://github.com/spring-projects/spring-petclinic.git
-cd spring-petclinic
-
-# Build application
-mvn clean package -DskipTests
-
-# Start application
-nohup java -jar target/spring-petclinic.jar > /tmp/app.log 2>&1 &
-
-# Enable for CloudWatch monitoring
-sudo yum install -y amazon-cloudwatch-agent
+sudo apt update
+sudo apt upgrade -y
 ```
 
-### Frontend User Data Script
+#### Install Node.js & npm
+```bash
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs npm
+```
+
+#### Install Nginx
+```bash
+sudo apt install -y nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
+```
+
+#### Verify Installation
+```bash
+node --version
+npm --version
+nginx -v
+```
+
+#### Clone React Repository
+```bash
+cd /home/ubuntu
+git clone https://github.com/spring-petclinic/spring-petclinic-reactjs.git
+cd spring-petclinic-reactjs
+```
+
+#### Install Dependencies & Build
+```bash
+npm install
+npm run build
+```
+
+#### Deploy to Nginx
+```bash
+sudo cp -r build/* /var/www/html/
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 755 /var/www/html
+```
+
+#### Configure Nginx Reverse Proxy
+```bash
+sudo nano /etc/nginx/sites-available/default
+```
+
+**Add this configuration:**
+```nginx
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    server_name _;
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
+
+    # Serve React static files
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass http://internal-backend-alb-123456.us-east-1.elb.amazonaws.com/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+#### Test & Reload Nginx
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### Health Check
+```bash
+curl http://localhost/
+curl http://localhost/api/vets
+```
+
+---
+
+### Backend Instance Setup (Ubuntu 22.04)
+
+#### Update System
+```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+#### Install Java 17
+```bash
+sudo apt install -y openjdk-17-jdk openjdk-17-jre
+```
+
+#### Install Maven
+```bash
+sudo apt install -y maven
+```
+
+#### Install Git
+```bash
+sudo apt install -y git
+```
+
+#### Verify Installation
+```bash
+java -version
+mvn -version
+git --version
+```
+
+#### Clone Spring Boot Repository
+```bash
+cd /home/ubuntu
+git clone https://github.com/spring-projects/spring-petclinic.git
+cd spring-petclinic
+```
+
+#### Build Application
+```bash
+mvn clean package -DskipTests
+```
+
+#### Configure Database Connection
+Create/Edit `application.properties`:
+```properties
+spring.datasource.url=jdbc:mysql://petclinic-mysql.c123456789.us-east-1.rds.amazonaws.com:3306/petclinic
+spring.datasource.username=petclinicadmin
+spring.datasource.password=YourSecurePassword123!
+
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+
+server.port=8080
+```
+
+#### Run Spring Boot Application
+```bash
+cd /home/ubuntu/spring-petclinic
+nohup java -jar target/spring-petclinic.jar > /tmp/petclinic.log 2>&1 &
+```
+
+#### Verify Application is Running
+```bash
+curl http://localhost:8080/actuator/health
+# Output: {"status":"UP"}
+
+# Check logs
+tail -f /tmp/petclinic.log
+```
+
+#### Create Systemd Service (Optional - for automatic startup)
+```bash
+sudo tee /etc/systemd/system/petclinic.service > /dev/null <<EOF
+[Unit]
+Description=Spring PetClinic Application
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/spring-petclinic
+ExecStart=/usr/bin/java -jar target/spring-petclinic.jar
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable petclinic
+sudo systemctl start petclinic
+```
+
+---
+
+### Frontend User Data Script (for Launch Template)
+
 ```bash
 #!/bin/bash
 set -e
 
 # Update system
-sudo yum update -y
-sudo yum install -y nginx nodejs npm
+sudo apt update
+sudo apt upgrade -y
 
-# Clone and build frontend
-cd /home/ec2-user
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs npm
+
+# Install Nginx
+sudo apt install -y nginx
+sudo systemctl enable nginx
+
+# Install git
+sudo apt install -y git
+
+# Clone and build React application
+cd /home/ubuntu
 git clone https://github.com/spring-petclinic/spring-petclinic-reactjs.git
 cd spring-petclinic-reactjs
-
-# Install dependencies and build
 npm install
 npm run build
 
 # Deploy to Nginx
 sudo cp -r build/* /var/www/html/
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 755 /var/www/html
 
-# Update Nginx config
-cat <<'EOF' | sudo tee /etc/nginx/sites-available/default
+# Configure Nginx
+cat <<'NGINXEOF' | sudo tee /etc/nginx/sites-available/default
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
     server_name _;
     root /var/www/html;
     index index.html;
 
     location / {
-        try_files \$uri /index.html;
+        try_files $uri /index.html;
     }
 
     location /api/ {
-        proxy_pass http://internal-backend-alb:80/;
+        proxy_pass http://internal-backend-alb-123456.us-east-1.elb.amazonaws.com/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
-EOF
+NGINXEOF
 
-sudo systemctl enable nginx
-sudo systemctl restart nginx
+# Test and reload Nginx
+sudo nginx -t
+sudo systemctl reload nginx
+
+# CloudWatch Agent (optional)
+wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
 ```
 
-### Health Check Script
+---
+
+### Backend User Data Script (for Launch Template)
+
 ```bash
 #!/bin/bash
+set -e
 
-echo "=== Frontend Health Check ==="
-curl -s http://localhost/ | head -20
-echo ""
-echo ""
+# Update system
+sudo apt update
+sudo apt upgrade -y
 
-echo "=== Backend Health Check ==="
-curl -s http://10.0.3.115:8080/actuator/health | jq .
-echo ""
-echo ""
+# Install Java 17
+sudo apt install -y openjdk-17-jdk openjdk-17-jre
 
-echo "=== RDS Connectivity Check ==="
-mysql -h petclinic-mysql.c123456789.us-east-1.rds.amazonaws.com \
-      -u petclinicadmin \
-      -p${DB_PASSWORD} \
-      -e "SELECT VERSION();"
+# Install Maven
+sudo apt install -y maven
+
+# Install git
+sudo apt install -y git
+
+# Clone and build Spring Boot application
+cd /home/ubuntu
+git clone https://github.com/spring-projects/spring-petclinic.git
+cd spring-petclinic
+mvn clean package -DskipTests
+
+# Create application.properties with database credentials
+cat <<'DBEOF' > /home/ubuntu/spring-petclinic/src/main/resources/application.properties
+spring.datasource.url=jdbc:mysql://petclinic-mysql.c123456789.us-east-1.rds.amazonaws.com:3306/petclinic
+spring.datasource.username=petclinicadmin
+spring.datasource.password=${RDS_PASSWORD}
+
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+
+server.port=8080
+DBEOF
+
+# Rebuild with new config
+mvn clean package -DskipTests
+
+# Start application in background
+cd /home/ubuntu/spring-petclinic
+nohup java -jar target/spring-petclinic.jar > /tmp/petclinic.log 2>&1 &
+
+# CloudWatch Agent (optional)
+wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+```
+
+---
+
+### Create Custom AMIs
+
+#### Frontend AMI Creation
+```bash
+# 1. Launch EC2 instance (t3.micro, Ubuntu 22.04)
+# 2. Run frontend user data script
+# 3. Wait for application to start
+# 4. Test: curl http://localhost/
+# 5. Go to EC2 → Instances → Right-click → Image and templates → Create image
+#    - Name: petclinic-frontend-v1
+#    - Description: Spring PetClinic Frontend (React + Nginx)
+# 6. Wait for AMI to be available
+```
+
+#### Backend AMI Creation
+```bash
+# 1. Launch EC2 instance (t3.small, Ubuntu 22.04)
+# 2. Run backend user data script
+# 3. Wait for application to start
+# 4. Test: curl http://localhost:8080/actuator/health
+# 5. Go to EC2 → Instances → Right-click → Image and templates → Create image
+#    - Name: petclinic-backend-v1
+#    - Description: Spring PetClinic Backend (Spring Boot + Java 17)
+# 6. Wait for AMI to be available
 ```
 
 ---
@@ -827,19 +1078,19 @@ mysql -h petclinic-mysql.c123456789.us-east-1.rds.amazonaws.com \
 # 7. Backup: 7 days
 ```
 
-### Step 4: Create AMIs
+### Step 4: Create Custom AMIs
 ```bash
-# Build Backend AMI:
-# 1. Launch t3.small in private-app-a
-# 2. Install Java 17, Maven
-# 3. Clone and build Spring Boot
-# 4. Create AMI: petclinic-backend-v1
-
 # Build Frontend AMI:
-# 1. Launch t3.micro in web-sub-a
-# 2. Install Nginx, Node.js
-# 3. Clone and build React
+# 1. Launch t3.micro in web-sub-a (Ubuntu 22.04)
+# 2. Run frontend user data script
+# 3. Verify: curl http://localhost/
 # 4. Create AMI: petclinic-frontend-v1
+
+# Build Backend AMI:
+# 1. Launch t3.small in private-app-a (Ubuntu 22.04)
+# 2. Run backend user data script
+# 3. Verify: curl http://localhost:8080/actuator/health
+# 4. Create AMI: petclinic-backend-v1
 ```
 
 ### Step 5: Create Launch Templates
@@ -1155,6 +1406,12 @@ curl https://petclinic.eshwar.site/api/vets
 3. **CIDR Planning:** Plan IP space carefully (e.g., /24 subnets fit 254 IPs)
 4. **DNS Resolution:** GoDaddy CNAME records integrate seamlessly with AWS
 
+### Ubuntu & Package Management
+1. **apt Update:** Always run `sudo apt update` before `apt install`
+2. **PPAs:** Node.js and other repos often require adding PPAs for latest versions
+3. **User Data Scripts:** Test scripts locally before adding to Launch Templates
+4. **Service Management:** Use `systemctl` for service control and auto-start on reboot
+
 ### Monitoring & Observability
 1. **CloudWatch Dashboards:** Visual metrics beat scrolling through consoles
 2. **Alarms:** Proactive alerting prevents incidents escalating
@@ -1255,6 +1512,8 @@ Cloud Engineer | AWS Specialist | DevOps Enthusiast
 - **Availability Zones:** 2 (us-east-1a, us-east-1b)
 - **AWS Services:** 15+
 - **Instances:** 2-4 (with Auto Scaling)
+- **OS:** Ubuntu 22.04 LTS
+- **Package Manager:** apt
 - **Deployment Time:** 2-3 hours
 
 ---
@@ -1289,9 +1548,17 @@ If you found this project helpful:
 - [AWS Systems Manager](https://docs.aws.amazon.com/systems-manager/)
 - [CloudWatch Monitoring](https://docs.aws.amazon.com/cloudwatch/)
 
-### Related Projects
+### Ubuntu & Package Management
+- [Ubuntu 22.04 LTS Documentation](https://ubuntu.com/releases/jammy)
+- [apt Package Manager](https://ubuntu.com/server/docs/package-management)
+- [NodeSource Node.js Repository](https://github.com/nodesource/distributions)
+
+### Application Documentation
 - [Spring PetClinic](https://github.com/spring-projects/spring-petclinic)
 - [Spring PetClinic React](https://github.com/spring-petclinic/spring-petclinic-reactjs)
+- [Spring Boot Documentation](https://spring.io/projects/spring-boot)
+- [React Documentation](https://react.dev)
+- [Nginx Documentation](https://nginx.org/en/docs/)
 
 ### Learning Paths
 - AWS Certified Solutions Architect - Associate
